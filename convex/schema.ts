@@ -32,6 +32,42 @@ const users = defineTable({
   .index('phone', ['phone'])
   .index('handle', ['handle'])
 
+// Shared validator fragments used by both `skills` and `skillSearchDigest`.
+const forkOfValidator = v.optional(
+  v.object({
+    skillId: v.id('skills'),
+    kind: v.union(v.literal('fork'), v.literal('duplicate')),
+    version: v.optional(v.string()),
+    at: v.number(),
+  }),
+)
+
+const badgeEntryValidator = v.optional(
+  v.object({ byUserId: v.id('users'), at: v.number() }),
+)
+
+const badgesValidator = v.optional(
+  v.object({
+    redactionApproved: badgeEntryValidator,
+    highlighted: badgeEntryValidator,
+    official: badgeEntryValidator,
+    deprecated: badgeEntryValidator,
+  }),
+)
+
+const statsValidator = v.object({
+  downloads: v.number(),
+  installsCurrent: v.optional(v.number()),
+  installsAllTime: v.optional(v.number()),
+  stars: v.number(),
+  versions: v.number(),
+  comments: v.number(),
+})
+
+const moderationStatusValidator = v.optional(
+  v.union(v.literal('active'), v.literal('hidden'), v.literal('removed')),
+)
+
 const skills = defineTable({
   slug: v.string(),
   displayName: v.string(),
@@ -39,14 +75,7 @@ const skills = defineTable({
   resourceId: v.optional(v.string()),
   ownerUserId: v.id('users'),
   canonicalSkillId: v.optional(v.id('skills')),
-  forkOf: v.optional(
-    v.object({
-      skillId: v.id('skills'),
-      kind: v.union(v.literal('fork'), v.literal('duplicate')),
-      version: v.optional(v.string()),
-      at: v.number(),
-    }),
-  ),
+  forkOf: forkOfValidator,
   latestVersionId: v.optional(v.id('skillVersions')),
   latestVersionSummary: v.optional(
     v.object({
@@ -59,37 +88,8 @@ const skills = defineTable({
   ),
   tags: v.record(v.string(), v.id('skillVersions')),
   softDeletedAt: v.optional(v.number()),
-  badges: v.optional(
-    v.object({
-      redactionApproved: v.optional(
-        v.object({
-          byUserId: v.id('users'),
-          at: v.number(),
-        }),
-      ),
-      highlighted: v.optional(
-        v.object({
-          byUserId: v.id('users'),
-          at: v.number(),
-        }),
-      ),
-      official: v.optional(
-        v.object({
-          byUserId: v.id('users'),
-          at: v.number(),
-        }),
-      ),
-      deprecated: v.optional(
-        v.object({
-          byUserId: v.id('users'),
-          at: v.number(),
-        }),
-      ),
-    }),
-  ),
-  moderationStatus: v.optional(
-    v.union(v.literal('active'), v.literal('hidden'), v.literal('removed')),
-  ),
+  badges: badgesValidator,
+  moderationStatus: moderationStatusValidator,
   moderationNotes: v.optional(v.string()),
   moderationReason: v.optional(v.string()),
   moderationVerdict: v.optional(
@@ -147,14 +147,7 @@ const skills = defineTable({
   statsStars: v.optional(v.number()),
   statsInstallsCurrent: v.optional(v.number()),
   statsInstallsAllTime: v.optional(v.number()),
-  stats: v.object({
-    downloads: v.number(),
-    installsCurrent: v.optional(v.number()),
-    installsAllTime: v.optional(v.number()),
-    stars: v.number(),
-    versions: v.number(),
-    comments: v.number(),
-  }),
+  stats: statsValidator,
   createdAt: v.number(),
   updatedAt: v.number(),
 })
@@ -396,60 +389,17 @@ const skillSearchDigest = defineTable({
   summary: v.optional(v.string()),
   ownerUserId: v.id('users'),
   canonicalSkillId: v.optional(v.id('skills')),
-  forkOf: v.optional(
-    v.object({
-      skillId: v.id('skills'),
-      kind: v.union(v.literal('fork'), v.literal('duplicate')),
-      version: v.optional(v.string()),
-      at: v.number(),
-    }),
-  ),
+  forkOf: forkOfValidator,
   latestVersionId: v.optional(v.id('skillVersions')),
   tags: v.record(v.string(), v.id('skillVersions')),
-  badges: v.optional(
-    v.object({
-      redactionApproved: v.optional(
-        v.object({
-          byUserId: v.id('users'),
-          at: v.number(),
-        }),
-      ),
-      highlighted: v.optional(
-        v.object({
-          byUserId: v.id('users'),
-          at: v.number(),
-        }),
-      ),
-      official: v.optional(
-        v.object({
-          byUserId: v.id('users'),
-          at: v.number(),
-        }),
-      ),
-      deprecated: v.optional(
-        v.object({
-          byUserId: v.id('users'),
-          at: v.number(),
-        }),
-      ),
-    }),
-  ),
-  stats: v.object({
-    downloads: v.number(),
-    installsCurrent: v.optional(v.number()),
-    installsAllTime: v.optional(v.number()),
-    stars: v.number(),
-    versions: v.number(),
-    comments: v.number(),
-  }),
+  badges: badgesValidator,
+  stats: statsValidator,
   statsDownloads: v.optional(v.number()),
   statsStars: v.optional(v.number()),
   statsInstallsCurrent: v.optional(v.number()),
   statsInstallsAllTime: v.optional(v.number()),
   softDeletedAt: v.optional(v.number()),
-  moderationStatus: v.optional(
-    v.union(v.literal('active'), v.literal('hidden'), v.literal('removed')),
-  ),
+  moderationStatus: moderationStatusValidator,
   moderationFlags: v.optional(v.array(v.string())),
   moderationReason: v.optional(v.string()),
   isSuspicious: v.optional(v.boolean()),
