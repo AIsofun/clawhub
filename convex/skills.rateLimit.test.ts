@@ -124,6 +124,7 @@ describe('skills anti-spam guards', () => {
         }
         throw new Error(`unexpected table ${table}`)
       }),
+      normalizeId: vi.fn(),
     }
 
     await expect(
@@ -181,6 +182,7 @@ describe('skills anti-spam guards', () => {
         }
         throw new Error(`unexpected table ${table}`)
       }),
+      normalizeId: vi.fn(),
     }
 
     await expect(
@@ -244,6 +246,7 @@ describe('skills anti-spam guards', () => {
         }
         throw new Error(`unexpected table ${table}`)
       }),
+      normalizeId: vi.fn(),
     }
 
     await expect(
@@ -310,6 +313,7 @@ describe('skills anti-spam guards', () => {
       }),
       patch,
       insert: vi.fn(),
+      normalizeId: vi.fn(),
     }
 
     await approveSkillByHashHandler(
@@ -385,6 +389,7 @@ describe('skills anti-spam guards', () => {
       }),
       patch,
       insert: vi.fn(),
+      normalizeId: vi.fn(),
     }
 
     await approveSkillByHashHandler(
@@ -444,6 +449,7 @@ describe('skills anti-spam guards', () => {
       }),
       patch,
       insert: vi.fn(),
+      normalizeId: vi.fn(),
     }
 
     await escalateByVtHandler(
@@ -513,6 +519,7 @@ describe('skills anti-spam guards', () => {
       }),
       patch,
       insert: vi.fn(),
+      normalizeId: vi.fn(),
     }
 
     const result = await clearOwnerSuspiciousFlagsHandler(

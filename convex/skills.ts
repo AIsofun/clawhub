@@ -11,7 +11,7 @@ import {
   internalQuery,
   mutation,
   query,
-} from './_generated/server'
+} from './functions'
 import { assertAdmin, assertModerator, requireUser, requireUserFromAction } from './lib/access'
 import {
   getSkillBadgeMap,
@@ -62,11 +62,6 @@ import {
 } from './lib/skillPublish'
 import { computeIsSuspicious, isSkillSuspicious } from './lib/skillSafety'
 import { getFrontmatterValue, hashSkillFiles } from './lib/skills'
-import {
-  extractDigestFields,
-  syncSkillSearchDigest,
-  upsertSkillSearchDigest,
-} from './lib/skillSearchDigest'
 
 export { publishVersionForUser } from './lib/skillPublish'
 
@@ -139,7 +134,6 @@ async function patchStructuredModerationFromVersion(
     ...patch,
     updatedAt: Date.now(),
   })
-  await syncSkillSearchDigest(ctx, skill._id)
 }
 const TRUSTED_PUBLISHER_SKILL_THRESHOLD = 10
 const LOW_TRUST_BURST_THRESHOLD_PER_HOUR = 8
@@ -329,7 +323,6 @@ async function hardDeleteSkillStep(
     patch.updatedAt = now
     const nextSkill = { ...skill, ...patch }
     await ctx.db.patch(skill._id, patch)
-    await upsertSkillSearchDigest(ctx, extractDigestFields(nextSkill as Doc<'skills'>))
     await adjustGlobalPublicCountForSkillChange(ctx, skill, nextSkill)
   }
 
@@ -541,7 +534,6 @@ async function hardDeleteSkillStep(
           canonicalSkillId: undefined,
           updatedAt: now,
         })
-        await syncSkillSearchDigest(ctx, related._id)
       }
       if (canonicalRefs.length === HARD_DELETE_BATCH_SIZE) {
         await scheduleHardDelete(ctx, skill._id, actorUserId, 'canonical')
@@ -560,7 +552,6 @@ async function hardDeleteSkillStep(
           forkOf: undefined,
           updatedAt: now,
         })
-        await syncSkillSearchDigest(ctx, related._id)
       }
       if (forkRefs.length === HARD_DELETE_BATCH_SIZE) {
         await scheduleHardDelete(ctx, skill._id, actorUserId, 'forks')
@@ -800,7 +791,6 @@ async function upsertSkillBadge(
         [kind]: { byUserId: userId, at },
       },
     })
-    await syncSkillSearchDigest(ctx, skillId)
   }
 }
 
@@ -817,7 +807,6 @@ async function removeSkillBadge(ctx: MutationCtx, skillId: Id<'skills'>, kind: B
   if (skill) {
     const { [kind]: _, ...remainingBadges } = (skill.badges ?? {}) as Record<string, unknown>
     await ctx.db.patch(skillId, { badges: remainingBadges })
-    await syncSkillSearchDigest(ctx, skillId)
   }
 }
 
@@ -1166,7 +1155,6 @@ export const clearOwnerSuspiciousFlagsInternal = internalMutation({
 
       const nextSkill = { ...skill, ...patch }
       await ctx.db.patch(skill._id, patch)
-      await upsertSkillSearchDigest(ctx, extractDigestFields(nextSkill as Doc<'skills'>))
       await adjustGlobalPublicCountForSkillChange(ctx, skill, nextSkill)
       updated += 1
     }
@@ -1748,7 +1736,6 @@ export const report = mutation({
 
     const nextSkill = { ...skill, ...updates }
     await ctx.db.patch(skill._id, updates)
-    await upsertSkillSearchDigest(ctx, extractDigestFields(nextSkill as Doc<'skills'>))
     await adjustGlobalPublicCountForSkillChange(ctx, skill, nextSkill)
 
     if (shouldAutoHide) {
@@ -2513,7 +2500,6 @@ export const updateSkillModerationReasonInternal = internalMutation({
         moderationReason: args.moderationReason,
       }),
     })
-    await syncSkillSearchDigest(ctx, args.skillId)
   },
 })
 
@@ -2554,7 +2540,6 @@ export const setSkillModerationStatusActiveInternal = internalMutation({
     const patch: Partial<Doc<'skills'>> = { moderationStatus: 'active' }
     const nextSkill = { ...skill, ...patch }
     await ctx.db.patch(args.skillId, patch)
-    await upsertSkillSearchDigest(ctx, extractDigestFields(nextSkill as Doc<'skills'>))
     await adjustGlobalPublicCountForSkillChange(ctx, skill, nextSkill)
   },
 })
@@ -2667,7 +2652,6 @@ export const applyBanToOwnedSkillsBatchInternal = internalMutation({
 
       const nextSkill = { ...skill, ...patch }
       await ctx.db.patch(skill._id, patch)
-      await upsertSkillSearchDigest(ctx, extractDigestFields(nextSkill as Doc<'skills'>))
       await adjustGlobalPublicCountForSkillChange(ctx, skill, nextSkill)
       await setSkillEmbeddingsSoftDeleted(ctx, skill._id, true, args.bannedAt)
     }
@@ -2723,7 +2707,6 @@ export const restoreOwnedSkillsForUnbanBatchInternal = internalMutation({
       }
       const nextSkill = { ...skill, ...patch }
       await ctx.db.patch(skill._id, patch)
-      await upsertSkillSearchDigest(ctx, extractDigestFields(nextSkill as Doc<'skills'>))
       await adjustGlobalPublicCountForSkillChange(ctx, skill, nextSkill)
 
       await setSkillEmbeddingsSoftDeleted(ctx, skill._id, false, now)
@@ -2848,7 +2831,6 @@ export const markScanStaleInternal = internalMutation({
       }),
       updatedAt: Date.now(),
     })
-    await syncSkillSearchDigest(ctx, args.skillId)
   },
 })
 
@@ -3031,7 +3013,6 @@ export const approveSkillByHashInternal = internalMutation({
       }
       const nextSkill = { ...skill, ...patch }
       await ctx.db.patch(skill._id, patch)
-      await upsertSkillSearchDigest(ctx, extractDigestFields(nextSkill as Doc<'skills'>))
       await adjustGlobalPublicCountForSkillChange(ctx, skill, nextSkill)
 
       // Auto-ban authors of malicious skills (skips moderators/admins)
@@ -3126,7 +3107,6 @@ export const escalateByVtInternal = internalMutation({
 
     const nextSkill = { ...skill, ...patch }
     await ctx.db.patch(skill._id, patch)
-    await upsertSkillSearchDigest(ctx, extractDigestFields(nextSkill as Doc<'skills'>))
     await adjustGlobalPublicCountForSkillChange(ctx, skill, nextSkill)
 
     // Auto-ban authors of malicious skills
@@ -3349,7 +3329,6 @@ export const updateTags = mutation({
     }
 
     await ctx.db.patch(skill._id, patch)
-    await syncSkillSearchDigest(ctx, skill._id)
 
     if (latestEntry) {
       await setSkillEmbeddingsLatestVersion(ctx, skill._id, latestEntry.versionId, now)
@@ -3448,7 +3427,6 @@ export const setSoftDeleted = mutation({
     }
     const nextSkill = { ...skill, ...patch }
     await ctx.db.patch(skill._id, patch)
-    await upsertSkillSearchDigest(ctx, extractDigestFields(nextSkill as Doc<'skills'>))
     await adjustGlobalPublicCountForSkillChange(ctx, skill, nextSkill)
 
     await setSkillEmbeddingsSoftDeleted(ctx, skill._id, args.deleted, now)
@@ -3484,7 +3462,6 @@ export const changeOwner = mutation({
       lastReviewedAt: now,
       updatedAt: now,
     })
-    await syncSkillSearchDigest(ctx, skill._id)
 
     const embeddings = await listSkillEmbeddingsForSkill(ctx, skill._id)
     for (const embedding of embeddings) {
@@ -3520,7 +3497,6 @@ async function transferSkillOwnershipAndEmbeddings(
     lastReviewedAt: params.now,
     updatedAt: params.now,
   })
-  await syncSkillSearchDigest(ctx, params.skill._id)
 
   const embeddings = await listSkillEmbeddingsForSkill(ctx, params.skill._id)
   for (const embedding of embeddings) {
@@ -3754,7 +3730,6 @@ export const setDuplicate = mutation({
         lastReviewedAt: now,
         updatedAt: now,
       })
-      await syncSkillSearchDigest(ctx, skill._id)
       await ctx.db.insert('auditLogs', {
         actorUserId: user._id,
         action: 'skill.duplicate.clear',
@@ -3788,7 +3763,6 @@ export const setDuplicate = mutation({
       lastReviewedAt: now,
       updatedAt: now,
     })
-    await syncSkillSearchDigest(ctx, skill._id)
 
     await ctx.db.insert('auditLogs', {
       actorUserId: user._id,
@@ -3996,7 +3970,6 @@ export const insertVersion = internalMutation({
 
       await ctx.db.patch(skill._id, { ownerUserId: userId, updatedAt: now })
       skill = { ...skill, ownerUserId: userId }
-      await syncSkillSearchDigest(ctx, skill._id)
     }
 
     const qualityAssessment = args.qualityAssessment
@@ -4228,7 +4201,6 @@ export const insertVersion = internalMutation({
     }
     const nextSkill = { ...skill, ...patch }
     await ctx.db.patch(skill._id, patch)
-    await upsertSkillSearchDigest(ctx, extractDigestFields(nextSkill as Doc<'skills'>))
     await adjustGlobalPublicCountForSkillChange(ctx, skill, nextSkill)
 
     const badgeMap = await getSkillBadgeMap(ctx, skill._id)
@@ -4306,7 +4278,6 @@ export const setSkillSoftDeletedInternal = internalMutation({
     }
     const nextSkill = { ...skill, ...patch }
     await ctx.db.patch(skill._id, patch)
-    await upsertSkillSearchDigest(ctx, extractDigestFields(nextSkill as Doc<'skills'>))
     await adjustGlobalPublicCountForSkillChange(ctx, skill, nextSkill)
 
     await setSkillEmbeddingsSoftDeleted(ctx, skill._id, args.deleted, now)

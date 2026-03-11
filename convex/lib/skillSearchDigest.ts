@@ -78,20 +78,3 @@ export async function upsertSkillSearchDigest(
     await ctx.db.insert('skillSearchDigest', fields)
   }
 }
-
-/** Read the full skill doc and sync its digest (convenience wrapper). */
-export async function syncSkillSearchDigest(
-  ctx: Pick<MutationCtx, 'db'>,
-  skillId: Id<'skills'>,
-) {
-  const skill = await ctx.db.get(skillId)
-  if (!skill) {
-    const existing = await ctx.db
-      .query('skillSearchDigest')
-      .withIndex('by_skill', (q) => q.eq('skillId', skillId))
-      .unique()
-    if (existing) await ctx.db.delete(existing._id)
-    return
-  }
-  await upsertSkillSearchDigest(ctx, extractDigestFields(skill))
-}
