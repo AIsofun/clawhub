@@ -22,7 +22,15 @@ triggers.register('skills', async (ctx, change) => {
       .unique()
     if (existing) await ctx.db.delete(existing._id)
   } else {
-    await upsertSkillSearchDigest(ctx, extractDigestFields(change.newDoc))
+    const fields = extractDigestFields(change.newDoc)
+    const owner = await ctx.db.get(change.newDoc.ownerUserId)
+    await upsertSkillSearchDigest(ctx, {
+      ...fields,
+      ownerHandle: owner?.handle,
+      ownerName: owner?.name,
+      ownerDisplayName: owner?.displayName,
+      ownerImage: owner?.image,
+    })
   }
 })
 

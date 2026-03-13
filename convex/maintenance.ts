@@ -1671,6 +1671,45 @@ export const backfillSkillSearchDigestInternal = internalMutation({
   },
 })
 
+// Backfill owner fields (ownerHandle, ownerName, ownerDisplayName, ownerImage)
+// on existing skillSearchDigest rows.
+// Run once after deploying the schema change:
+//   npx convex run maintenance:backfillDigestOwnerFieldsInternal --prod
+export const backfillDigestOwnerFieldsInternal = internalMutation({
+  args: {
+    cursor: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const batchSize = clampInt(args.batchSize ?? 200, 10, 500)
+    const { page, continueCursor, isDone } = await ctx.db
+      .query('skillSearchDigest')
+      .paginate({ cursor: args.cursor ?? null, numItems: batchSize })
+
+    let patched = 0
+    for (const digest of page) {
+      if (digest.ownerHandle !== undefined) continue
+      const owner = await ctx.db.get(digest.ownerUserId)
+      await ctx.db.patch(digest._id, {
+        ownerHandle: owner?.handle,
+        ownerName: owner?.name,
+        ownerDisplayName: owner?.displayName,
+        ownerImage: owner?.image,
+      })
+      patched++
+    }
+
+    if (!isDone) {
+      await ctx.scheduler.runAfter(0, internal.maintenance.backfillDigestOwnerFieldsInternal, {
+        cursor: continueCursor,
+        batchSize: args.batchSize,
+      })
+    }
+
+    return { patched, isDone, scanned: page.length }
+  },
+})
+
 function clampInt(value: number, min: number, max: number) {
   const rounded = Math.trunc(value)
   if (!Number.isFinite(rounded)) return min

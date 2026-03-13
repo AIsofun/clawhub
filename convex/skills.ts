@@ -51,7 +51,7 @@ import {
   verdictFromCodes,
 } from './lib/moderationReasonCodes'
 import { type HydratableSkill, toPublicSkill, toPublicUser } from './lib/public'
-import { digestToHydratableSkill } from './lib/skillSearchDigest'
+import { digestToHydratableSkill, digestToOwnerInfo } from './lib/skillSearchDigest'
 import {
   AUTO_HIDE_REPORT_THRESHOLD,
   MAX_ACTIVE_REPORTS_PER_USER,
@@ -927,7 +927,13 @@ type BadgeKind = Doc<'skillBadges'>['kind']
 async function buildPublicSkillEntries(
   ctx: QueryCtx,
   skills: HydratableSkill[],
-  opts?: { includeVersion?: boolean },
+  opts?: {
+    includeVersion?: boolean
+    preResolvedOwners?: Map<
+      Id<'skills'>,
+      { ownerHandle: string | null; owner: ReturnType<typeof toPublicUser> | null }
+    >
+  },
 ) {
   const includeVersion = opts?.includeVersion ?? true
   const ownerInfoCache = new Map<
@@ -938,7 +944,9 @@ async function buildPublicSkillEntries(
     }>
   >()
 
-  const getOwnerInfo = (ownerUserId: Id<'users'>) => {
+  const getOwnerInfo = (skillId: Id<'skills'>, ownerUserId: Id<'users'>) => {
+    const preResolved = opts?.preResolvedOwners?.get(skillId)
+    if (preResolved) return preResolved
     const cached = ownerInfoCache.get(ownerUserId)
     if (cached) return cached
     const ownerPromise = ctx.db.get(ownerUserId).then((ownerDoc) => {
@@ -964,7 +972,7 @@ async function buildPublicSkillEntries(
         includeVersion && !hasSummary && skill.latestVersionId
           ? ctx.db.get(skill.latestVersionId)
           : null,
-        getOwnerInfo(skill.ownerUserId),
+        getOwnerInfo(skill._id, skill.ownerUserId),
       ])
       const publicSkill = toPublicSkill(skill)
       if (!publicSkill) return null
@@ -2362,7 +2370,17 @@ export const listPublicPageV2 = query({
       args,
     )
 
-    const items = await buildPublicSkillEntries(ctx, filteredPage)
+    // Build a map from skillId → pre-resolved owner info from digest rows
+    const preResolvedOwners = new Map<
+      Id<'skills'>,
+      { ownerHandle: string | null; owner: ReturnType<typeof toPublicUser> | null }
+    >()
+    for (const digest of result.page) {
+      const info = digestToOwnerInfo(digest)
+      if (info) preResolvedOwners.set(digest.skillId, info)
+    }
+
+    const items = await buildPublicSkillEntries(ctx, filteredPage, { preResolvedOwners })
     return { ...result, page: items }
   },
 })
