@@ -43,6 +43,23 @@ function synthesizePersonalPublisher(user: Doc<"users">): Doc<"publishers"> {
   };
 }
 
+export async function getPersonalPublisherForUserOrFallback(
+  ctx: DbCtx,
+  user: Doc<"users">,
+) {
+  if (user.personalPublisherId) {
+    const publisher = await ctx.db.get(user.personalPublisherId);
+    if (isPublisherActive(publisher)) return publisher;
+  }
+  try {
+    const publisher = await getPersonalPublisherForUser(ctx, user._id);
+    if (isPublisherActive(publisher)) return publisher;
+  } catch (error) {
+    if (!isMissingPublisherTableError(error)) throw error;
+  }
+  return synthesizePersonalPublisher(user);
+}
+
 export function normalizePublisherHandle(handle: string | undefined | null) {
   const normalized = handle?.trim().replace(/^@+/, "").toLowerCase();
   return normalized ? normalized : undefined;
@@ -290,15 +307,5 @@ export async function getOwnerPublisher(
   if (!params.ownerUserId) return null;
   const user = await ctx.db.get(params.ownerUserId);
   if (!user || user.deletedAt || user.deactivatedAt) return null;
-  if (user.personalPublisherId) {
-    const publisher = await ctx.db.get(user.personalPublisherId);
-    if (isPublisherActive(publisher)) return publisher;
-  }
-  try {
-    const publisher = await getPersonalPublisherForUser(ctx, params.ownerUserId);
-    if (isPublisherActive(publisher)) return publisher;
-  } catch (error) {
-    if (!isMissingPublisherTableError(error)) throw error;
-  }
-  return synthesizePersonalPublisher(user);
+  return await getPersonalPublisherForUserOrFallback(ctx, user);
 }

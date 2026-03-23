@@ -4519,7 +4519,7 @@ export const publishVersion: ReturnType<typeof action> = action({
       throw new ConvexError("MIT-0 license terms must be accepted to publish skills");
     }
     const { userId } = await requireUserFromAction(ctx);
-    const target = (await ctx.runQuery(internal.publishers.resolvePublishTargetForUserInternal, {
+    const target = (await ctx.runMutation(internal.publishers.resolvePublishTargetForUserInternal, {
       actorUserId: userId,
       ownerHandle: args.ownerHandle,
       minimumRole: "publisher",

@@ -1142,7 +1142,7 @@ async function publishPackageImpl(
     throw new ConvexError("Skill packages must use the skills publish flow");
   }
   await requireGitHubAccountAge(ctx, actorUserId);
-  const ownerTarget = await runQueryRef<{
+  const ownerTarget = await runMutationRef<{
     publisherId: Id<"publishers">;
     linkedUserId?: Id<"users">;
   } | null>(ctx, internalRefs.publishers.resolvePublishTargetForUserInternal, {

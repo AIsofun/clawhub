@@ -2,6 +2,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { describe, expect, it, vi } from "vitest";
 import {
   addMember,
+  listMine,
   migrateLegacyPublisherHandleToOrgInternal,
   removeMember,
 } from "./publishers";
@@ -43,6 +44,10 @@ const migrateLegacyPublisherHandleToOrgInternalHandler = (
       packagesMigrated: number;
     }
   >
+)._handler;
+
+const listMineHandler = (
+  listMine as unknown as WrappedHandler<Record<string, never>, Array<unknown>>
 )._handler;
 
 describe("publishers membership controls", () => {
@@ -163,6 +168,62 @@ describe("publishers membership controls", () => {
         { publisherId: "publishers:org", userId: "users:owner" } as never,
       ),
     ).rejects.toThrow("Publisher must have at least one owner");
+  });
+});
+
+describe("publisher bootstrap", () => {
+  it("lists a synthesized personal publisher when membership rows are missing", async () => {
+    vi.mocked(getAuthUserId).mockResolvedValue("users:alice" as never);
+    const ctx = {
+      db: {
+        get: vi.fn(async (id: string) => {
+          if (id === "users:alice") {
+            return {
+              _id: id,
+              _creationTime: 1,
+              handle: "alice",
+              displayName: "Alice",
+              trustedPublisher: false,
+              createdAt: 1,
+              updatedAt: 1,
+            };
+          }
+          return null;
+        }),
+        query: vi.fn((table: string) => {
+          if (table === "publisherMembers") {
+            return {
+              withIndex: vi.fn((indexName: string) => {
+                if (indexName !== "by_user") throw new Error(`unexpected index ${indexName}`);
+                return { collect: vi.fn().mockResolvedValue([]) };
+              }),
+            };
+          }
+          if (table === "publishers") {
+            return {
+              withIndex: vi.fn((indexName: string) => {
+                if (indexName !== "by_linked_user") {
+                  throw new Error(`unexpected index ${indexName}`);
+                }
+                return { unique: vi.fn().mockResolvedValue(null) };
+              }),
+            };
+          }
+          throw new Error(`unexpected table ${table}`);
+        }),
+      },
+    };
+
+    await expect(listMineHandler(ctx as never, {} as never)).resolves.toEqual([
+      expect.objectContaining({
+        role: "owner",
+        publisher: expect.objectContaining({
+          handle: "alice",
+          kind: "user",
+          linkedUserId: "users:alice",
+        }),
+      }),
+    ]);
   });
 });
 

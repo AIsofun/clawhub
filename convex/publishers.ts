@@ -8,6 +8,7 @@ import {
   ensurePersonalPublisherForUser,
   getPublisherByHandle,
   getPublisherMembership,
+  getPersonalPublisherForUserOrFallback,
   getPersonalPublisherForUser,
   isPublisherRoleAllowed,
   normalizePublisherHandle,
@@ -350,7 +351,7 @@ export const ensurePersonalPublisherInternal = internalMutation({
   },
 });
 
-export const resolvePublishTargetForUserInternal = internalQuery({
+export const resolvePublishTargetForUserInternal = internalMutation({
   args: {
     actorUserId: v.id("users"),
     ownerHandle: v.optional(v.string()),
@@ -361,14 +362,9 @@ export const resolvePublishTargetForUserInternal = internalQuery({
     if (!actor || actor.deletedAt || actor.deactivatedAt) throw new ConvexError("Unauthorized");
     const minimumRole = args.minimumRole ?? "publisher";
     const requestedHandle = normalizePublisherHandle(args.ownerHandle);
-    const personal =
-      actor.personalPublisherId
-        ? await ctx.db.get(actor.personalPublisherId)
-        : await getPersonalPublisherForUser(ctx, actor._id);
+    const personal = await ensurePersonalPublisherForUser(ctx, actor);
+    if (!personal) throw new ConvexError("Personal publisher not found");
     if (!requestedHandle) {
-      if (!personal || personal.deletedAt || personal.deactivatedAt) {
-        throw new ConvexError("Personal publisher not found");
-      }
       return {
         publisherId: personal._id,
         handle: personal.handle,
@@ -408,6 +404,8 @@ export const listMine = query({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return [];
+    const user = await ctx.db.get(userId);
+    if (!user || user.deletedAt || user.deactivatedAt) return [];
     const memberships = await ctx.db
       .query("publisherMembers")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -419,11 +417,11 @@ export const listMine = query({
         if (!publicPublisher) return null;
         return {
           publisher: publicPublisher,
-          role: membership.role,
-        };
-      }),
+        role: membership.role,
+      };
+    }),
     );
-    return publishers.filter(
+    const visiblePublishers = publishers.filter(
       (
         item,
       ): item is {
@@ -431,6 +429,19 @@ export const listMine = query({
         role: Doc<"publisherMembers">["role"];
       } => Boolean(item),
     );
+    const personalPublisher = toPublicPublisher(
+      await getPersonalPublisherForUserOrFallback(ctx, user),
+    );
+    if (
+      personalPublisher &&
+      !visiblePublishers.some((entry) => entry.publisher._id === personalPublisher._id)
+    ) {
+      visiblePublishers.unshift({
+        publisher: personalPublisher,
+        role: "owner",
+      });
+    }
+    return visiblePublishers;
   },
 });
 
