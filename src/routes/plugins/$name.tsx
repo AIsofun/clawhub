@@ -86,6 +86,8 @@ function CopyButton({ text }: { text: string }) {
         void navigator.clipboard.writeText(text).then(() => {
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
+        }).catch(() => {
+          // clipboard not available (permission denied or insecure context)
         });
       }}
       aria-label="Copy to clipboard"
