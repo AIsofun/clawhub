@@ -111,18 +111,14 @@ const CAPABILITY_LABELS: Record<string, string> = {
   commandNames: "Commands",
   serviceNames: "Services",
   capabilityTags: "Tags",
-  httpRouteCount: "HTTP routes",
-  bundleFormat: "Bundle format",
-  hostTargets: "Host targets",
-};
-
-function formatCapabilityValue(value: unknown): string {
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "number") return String(value);
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) return value.length === 0 ? "None" : value.join(", ");
-  return JSON.stringify(value);
-}
+      onClick={() => {
+        void navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }).catch(() => {
+          // clipboard not available; silently ignore or show an error
+        });
+      }}
 
 function isEmptyObject(obj: unknown): boolean {
   if (!obj || typeof obj !== "object") return true;
