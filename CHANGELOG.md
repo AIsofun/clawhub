@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+### Fixed
+- CLI: bump `undici` dependency to `^7.24.3` for dependency maintenance (#1014) (thanks @AIsofun).
+
+
 ## 0.10.0 - 2026-04-05
 
 ### Added
@@ -68,7 +76,6 @@
 - Visibility/API: prevent skills owned by deleted/banned users from showing up in public detail pages, browse/search results, or version API routes.
 - Skills/API: sanitize public skill and soul version/file reads so hidden or invalid version data does not leak through direct API access.
 - Skills/Web: keep Monaco compare layout toggles reliable while defaulting narrow screens to inline mode (#828) (thanks @geoffrey-xiao).
-- CLI: bump `undici` dependency to `^7.24.3` for dependency maintenance (#1014) (thanks @AIsofun).
 
 ## 0.8.0 - 2026-03-13
 
